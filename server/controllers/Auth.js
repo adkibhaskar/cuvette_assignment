@@ -1,25 +1,36 @@
-const Company = require("./models/Company")
-const emailOtp = require("./models/EmailOtp");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
-const phoneOtp = require("./models/PhoneOtp");
+const emailOtp = require("../models/EmailOtp");
+const phoneOtp = require("../models/PhoneOtp");
+const Company = require("../models/Company");
 exports.sendEmailOtp = async (req, res) => {
     try{
-        const {companyEmail} = req.body;
-        const checkCompanyEmailPresent = await Company.findOne({companyEmail});
+        const {email} = req.body;
+        if(!email){
+            return res.status(403).send({
+                success: false,
+				message: "All Fields are required",
+			});
+        }
+        const checkCompanyEmailPresent = await Company.findOne({companyEmail:email});
         if(checkCompanyEmailPresent){
             return res.status(401).json({
                 sucess:false,
                 message:"Company Email Already Exists",
             })
         }
+        let otp;
+        let result;
         do {
             otp = otpGenerator.generate(6, {
                 upperCaseAlphabets: false,
             });
-            result = await emailOtp.findOne({ otp: otp }); 
+            console.log("The otp is : ",otp);
+            result = await emailOtp.findOne({ otp });
         } while (result); 
-        const otpPayload = {companyEmail, otp};
-        const otpBody = await OTP.create(otpPayload);
+        const otpPayload = {email, otp};
+        const otpBody = await emailOtp.create(otpPayload);
         console.log("otpBODY -> ", otpBody);
         res.status(200).json({
             success:true,
@@ -37,22 +48,32 @@ exports.sendEmailOtp = async (req, res) => {
 exports.sendMobileOtp = async(req,res)=>{
     try{
         const {phoneNo} = req.body;
-
-        const checkExistingMobileNumber = phoneOtp.findOne({phoneNo});
+        if(!phoneNo){
+            return res.status(403).send({
+                success: false,
+				message: "All Fields are required",
+			});
+        }
+        const checkExistingMobileNumber = await Company.findOne({phoneNo:phoneNo});
         if(checkExistingMobileNumber){
             return res.status(401).json({
                 sucess:false,
                 message:"Company Phone Already Exists",
                 })
             }
+            let otp;
+            let result;
             do {
                 otp = otpGenerator.generate(6, {
                     upperCaseAlphabets: false,
+                    specialChars: false,
+                    lowerCaseAlphabets: false,
+                    digits: true      
                 });
                 result = await emailOtp.findOne({ otp: otp }); 
             } while (result); 
-            const otpPayload = {companyEmail, otp};
-            const otpBody = await OTP.create(otpPayload);
+            const otpPayload = {phoneNo, otp};
+            const otpBody = await phoneOtp.create(otpPayload);
             console.log("otpBODY -> ", otpBody);
             res.status(200).json({
                 success:true,
@@ -67,63 +88,6 @@ exports.sendMobileOtp = async(req,res)=>{
 
     }
 }
-const generateJwtToken=(companyRecord)=>{
-    const payload = {
-        companyEmail: companyRecord.companyEmail,
-        id: companyRecord._id
-    }
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-
-    });
-    return token;
-
-}
-exports.verifyCrediantials=async(req,res)=>{
-    try{
-        const{phoneNumber,companyEmail} = req.body();
-        if(!phoneNumber || !companyEmail){
-            return res.status(403).send({
-			success: false,
-			message: "All Fields are required",
-            })
-        }
-        const companyRecord = await Company.findOne({ companyEmail });
-        if(companyRecord){
-            const registeredPhoneNumber = companyRecord.phoneNo;
-            if (registeredPhoneNumber === phoneNumber) {
-                const token = generateJwtToken(companyRecord);
-                const options = {
-                    expires: new Date(Date.now() + 3*24*60*60*1000),
-                    httpOnly:true,
-                }
-                res.cookie("token", token, options).status(200).json({
-                    success:true,
-                    token,
-                    user,
-                    message:"LOGGED IN SUCCESSFULLY",
-                });
-            }
-            else {
-                return res.status(404).json({
-                    success: false,
-                    message: "New phone number found with the registered email. Please verify both email and phone number."
-                });
-            } 
-        }
-        else {
-            return res.status(404).json({
-                success: false,
-                message: "No account found with the provided email."
-            });
-        }
-    }catch(error){
-        console.error(error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error."
-        });
-    }
-}
 exports.signup = async (req, res) => {
 	try {
         const {
@@ -132,28 +96,48 @@ exports.signup = async (req, res) => {
             companyName,
             companyEmail,
 			employeeSize,
+            password,
+            confirmPassword
         } = req.body;
         if (
 			!name ||
 			!phoneNo ||
 			!companyName ||
-			!employeeSize
+			!employeeSize ||
+            !password ||
+            !confirmPassword
         ) {
 			return res.status(403).send({
 				success: false,
 				message: "All Fields are required",
 			});
 		}
+        if (password !== confirmPassword) {
+			return res.status(400).json({
+				success: false,
+				message:
+					"Password and Confirm Password do not match. Please try again.",
+			});
+		}
+        const existingCompany = await Company.findOne({ companyEmail });
+		if (existingCompany) {
+			return res.status(400).json({
+				success: false,
+				message: "Company  already exists. Please sign in to continue.",
+			});
+		}
+        const hashedPassword = await bcrypt.hash(password, 10);
         const companyDetails = await Company.create({
 			name,
             phoneNo,
             companyName,
             companyEmail,
-            employeeSize
+            employeeSize,
+            password: hashedPassword,
         });
         return res.status(200).json({
 			success: true,
-			user,
+			companyDetails,
 			message: "Company Details registered successfully",
 		});
 	} catch (error) {
@@ -164,6 +148,61 @@ exports.signup = async (req, res) => {
 		});
 	}
 };
+exports.login = async (req, res) => {
+    try{
+        const{
+            companyEmail,
+            password,
+        } = req.body;
+
+        
+        if( !companyEmail || !password ){
+            return res.status(403).json({
+                success:false,
+                message:"ALL FIELDS ARE REQUIRED",
+            });
+        }
+
+        //checking... user existence
+        const companyDetails = await Company.findOne({companyEmail})
+        if(!companyDetails){
+            return res.status(401).json({
+                success:false,
+                message:"Company is not registered !!",
+            });
+        }
+        if(await bcrypt.compare(password, companyDetails.password)) {
+            const payload = {
+                email: companyDetails.companyEmail,
+                id: companyDetails._id,
+            }
+            const token = jwt.sign(payload, process.env.JWT_SECRET, {});
+            const options = {
+                expires: new Date(Date.now() + 3*24*60*60*1000),
+                httpOnly:true,
+            }
+            res.cookie("token", token, options).status(200).json({
+                success:true,
+                token,
+                message:"LOGGED IN SUCCESSFULLY",
+            });
+        
+        }
+        else{
+            return res.status(401).json({
+                success:false,
+                message:"password doesnt matched !!",
+            });
+        }
+
+    } catch(error){
+        console.log(error);
+        return res.status(500).json({
+            success:false,
+            message:"user cannot LOGGED in, try again ",
+        }) 
+    }
+} 
 exports.validateEmail = async(req,res)=>{
     try{
         const {email,otp}=req.body;

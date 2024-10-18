@@ -7,7 +7,7 @@ const companySchema = new mongoose.Schema({
         trim:true
     },
     phoneNo:{
-        type:Number,
+        type:String,
         required:true,
     },
     companyName:{
@@ -20,7 +20,17 @@ const companySchema = new mongoose.Schema({
     },
     employeeSize:{
         type:Number
-    }
+    },
+    password:{
+        type:String,
+        required:true
+    },
+    jobPostings: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'JobPosting'
+        }
+    ],
 
     }
 )

@@ -21,7 +21,7 @@ const emailOtpSchema = new mongoose.Schema({
 async function sendVerificationEmail(email, otp) {
     try{
         const mailResponse = await mailSender(email,
-             "Verification EMAIL from StudyNotion by-Bhaskar",
+             "Verification EMAIL from Cuvette by-Bhaskar",
              emailTemplate(otp));
         console.log("Email sended Successfully!! => ", mailResponse);
     } catch(error) {
@@ -31,12 +31,10 @@ async function sendVerificationEmail(email, otp) {
 }
 
 
-OTPSchema.pre("save", async function(next) {
+emailOtpSchema.pre("save", async function(next) {
     if (this.isNew) {
 		await sendVerificationEmail(this.email, this.otp);
 	}
 	next();
 })
-
-const emailOtp = mongoose.model("emailOtp",emailOtpSchema);
-module.exports = emailOtp;
+module.exports = mongoose.model("emailOtp",emailOtpSchema);
