@@ -1,5 +1,6 @@
 const express = require("express");
 const companyRoutes = require("./routes/Company");
+const jobPostingsRoutes=require("./routes/JobPostings");
 const database = require("./config/database");
 const cookieParser=require('cookie-parser');
 const cors = require("cors");
@@ -13,6 +14,7 @@ database.connect();
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/v1/auth", companyRoutes);
+app.use("/api/v1/jobPostings",jobPostingsRoutes);
 app.use(
 	cors({
 		origin: "*",

@@ -17,6 +17,14 @@ const jobPostingSchema = new mongoose.Schema({
         type: Date,
         required: true,
     },
+    status: {
+		type: String,
+		enum: ["Draft", "Published"],
+	},
+    createdAt: {
+		type:Date,
+		default:Date.now
+	},
 });
 const JobPosting = mongoose.model("JobPosting", jobPostingSchema);
 module.exports = JobPosting;

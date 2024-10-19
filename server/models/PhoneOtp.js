@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+const twilio = require("twilio");
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = new twilio(accountSid, authToken); 
 
 const phoneOtpSchema = new mongoose.Schema({
     phoneNo:{
-        type:Number,
+        type:String,
         required:true,
         trim:true
     },
@@ -23,7 +24,7 @@ async function sendOtpToPhone(phoneNumber, otp) {
         const message = await client.messages.create({
             body: `Your OTP is: ${otp}`,
             to: phoneNumber,
-            from: 'your_twilio_phone_number' 
+            from: '+19704328858' 
         });
         console.log("OTP sent successfully:", message.sid);
     } catch (error) {
